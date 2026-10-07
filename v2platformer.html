@@ -1,0 +1,2189 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Arcade Platformer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Press Start 2P', monospace;
+            background-color: #05050a;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        .arcade-btn {
+            background: linear-gradient(to bottom, #3b82f6, #1d4ed8);
+            box-shadow: 0 4px 0 #1e3a8a, 0 6px 10px rgba(0, 0, 0, 0.4);
+            transition: all 0.05s ease;
+        }
+
+        .arcade-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #1e3a8a, 0 3px 5px rgba(0, 0, 0, 0.4);
+        }
+
+        .arcade-btn-jump {
+            background: linear-gradient(to bottom, #ec4899, #be185d);
+            box-shadow: 0 4px 0 #831843, 0 6px 10px rgba(0, 0, 0, 0.4);
+        }
+
+        .arcade-btn-jump:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #831843, 0 3px 5px rgba(0, 0, 0, 0.4);
+        }
+    </style>
+</head>
+
+<body class="flex flex-col items-center justify-center min-h-screen text-white overflow-hidden p-2 sm:p-4">
+
+    <div id="game-container"
+        class="relative w-full max-w-3xl bg-slate-950 border-4 border-blue-500 rounded-xl shadow-2xl overflow-hidden flex flex-col">
+
+        <!-- Header HUD -->
+        <div class="flex justify-between items-center bg-slate-900 px-3 sm:px-4 py-2.5 border-b-2 border-blue-600 text-xs sm:text-sm z-10">
+            <div class="flex items-center gap-2 sm:gap-4">
+                <div class="flex items-center gap-1 sm:gap-2">
+                    <span class="text-yellow-400 font-bold">SCORE:</span>
+                    <span id="scoreVal" class="text-white">0</span>
+                </div>
+                <div class="flex items-center gap-1 sm:gap-2">
+                    <span class="text-pink-500 font-bold">LEVEL:</span>
+                    <span id="levelVal" class="text-white">1</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 sm:gap-4">
+                <div class="flex items-center gap-1">
+                    <span class="text-red-500 font-bold hidden sm:inline">LIVES:</span>
+                    <div id="livesContainer" class="flex gap-0.5 sm:gap-1 text-red-500">❤️❤️❤️</div>
+                </div>
+                <button id="btnPause" type="button" onclick="togglePause()"
+                    class="arcade-btn bg-slate-800 border border-blue-400 text-blue-300 hover:text-white px-2.5 py-1 rounded text-[10px] sm:text-xs font-bold tracking-wider cursor-pointer">
+                    ⏸️ MENU
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Canvas Area -->
+        <div class="relative w-full aspect-[16/10] bg-slate-900 overflow-hidden flex items-center justify-center">
+            <canvas id="gameCanvas" class="w-full h-full block bg-slate-950"></canvas>
+
+            <!-- Main Start Menu Overlay -->
+            <div id="menuOverlay"
+                class="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 sm:p-6 text-center z-20">
+                <h1 class="text-2xl sm:text-4xl text-blue-400 mb-2 tracking-wider drop-shadow-[0_4px_rgba(30,58,138,1)] font-extrabold">
+                    CYBER JUMPER
+                </h1>
+                <p class="text-[11px] sm:text-xs text-gray-300 mb-5 leading-5 max-w-md">
+                    Collect coins, avoid spikes & ground bots!<br>
+                    Defeat flying drones, <span class="text-purple-400 font-bold">Omega Sentinel</span> & <span class="text-orange-400 font-bold">Ignis Prime</span>!<br>
+                    <span class="text-yellow-300 font-bold">W / UP / SPACE</span> to Jump & Double Jump
+                </p>
+                <div class="flex flex-col sm:flex-row gap-3 w-full max-w-md justify-center">
+                    <button id="btnStartGame" type="button" onclick="startGame()"
+                        class="arcade-btn text-white text-xs sm:text-sm px-6 py-3.5 rounded-lg font-bold tracking-widest cursor-pointer uppercase flex-1">
+                        START GAME
+                    </button>
+                    <button id="btnOpenLevelSelect" type="button" onclick="openLevelSelect()"
+                        class="arcade-btn bg-purple-600 text-white text-xs sm:text-sm px-6 py-3.5 rounded-lg font-bold tracking-widest cursor-pointer uppercase flex-1">
+                        SELECT LEVEL
+                    </button>
+                </div>
+            </div>
+
+            <!-- Level Selector Overlay -->
+            <div id="levelSelectOverlay"
+                class="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-between p-3 sm:p-5 text-center z-20 hidden overflow-y-auto">
+                <div class="w-full flex flex-col items-center">
+                    <h2 class="text-base sm:text-xl text-purple-400 mb-0.5 tracking-wider drop-shadow-[0_3px_rgba(107,33,168,1)] font-bold">
+                        SELECT LEVEL
+                    </h2>
+                    <p class="text-[10px] sm:text-xs text-gray-400 mb-2">Choose any zone to deploy directly into action</p>
+
+                    <!-- Filter Tabs -->
+                    <div class="flex gap-2 mb-2 text-[10px] sm:text-xs">
+                        <button id="tabBtnAll" type="button" onclick="filterLevelGrid('all')"
+                            class="arcade-btn bg-purple-600 text-white px-2.5 py-1 rounded font-bold uppercase cursor-pointer">
+                            ALL ZONES (1-12)
+                        </button>
+                        <button id="tabBtnCyber" type="button" onclick="filterLevelGrid('cyber')"
+                            class="arcade-btn bg-slate-800 border border-purple-500 text-gray-300 px-2.5 py-1 rounded font-bold uppercase cursor-pointer">
+                            CYBER (1-6)
+                        </button>
+                        <button id="tabBtnVolcanic" type="button" onclick="filterLevelGrid('volcanic')"
+                            class="arcade-btn bg-slate-800 border border-purple-500 text-gray-300 px-2.5 py-1 rounded font-bold uppercase cursor-pointer">
+                            VOLCANIC (7-12)
+                        </button>
+                    </div>
+
+                    <!-- Seamless Grid (Zones 1-12) -->
+                    <div id="lvlGridContainer" class="grid grid-cols-3 sm:grid-cols-4 gap-1.5 sm:gap-2 w-full max-w-2xl">
+                        <button id="btnLevel1" type="button" onclick="selectAndStartLevel(1)" data-category="cyber"
+                            class="arcade-btn bg-slate-900 border-2 border-blue-500 hover:border-yellow-400 p-2 rounded-lg text-left transition flex flex-col justify-between h-14 cursor-pointer">
+                            <span class="text-[10px] sm:text-xs text-yellow-400 font-bold">ZONE 1</span>
+                            <span class="text-[9px] sm:text-[10px] text-gray-200 truncate">Neon Roads</span>
+                        </button>
+                        <button id="btnLevel2" type="button" onclick="selectAndStartLevel(2)" data-category="cyber"
+                            class="arcade-btn bg-slate-900 border-2 border-blue-500 hover:border-yellow-400 p-2 rounded-lg text-left transition flex flex-col justify-between h-14 cursor-pointer">
+                            <span class="text-[10px] sm:text-xs text-yellow-400 font-bold">ZONE 2</span>
+                            <span class="text-[9px] sm:text-[10px] text-gray-200 truncate">Skyway Towers</span>
+                        </button>
+                        <button id="btnLevel3" type="button" onclick="selectAndStartLevel(3)" data-category="cyber"
+                            class="arcade-btn bg-slate-900 border-2 border-pink-500 hover:border-yellow-400 p-2 rounded-lg text-left transition flex flex-col justify-between h-14 cursor-pointer">
+                            <span class="text-[10px] sm:text-xs text-pink-400 font-bold">ZONE 3</span>
+                            <span class="text-[9px] sm:text-[10px] text-gray-200 truncate">Void Pitfalls</span>
+                        </button>
+                        <button id="btnLevel4" type="button" onclick="selectAndStartLevel(4)" data-category="cyber"
+                            class="arcade-btn bg-slate-900 border-2 border-purple-500 hover:border-yellow-400 p-2 rounded-lg text-left transition flex flex-col justify-between h-14 cursor-pointer">
+                            <span class="text-[10px] sm:text-xs text-purple-400 font-bold">ZONE 4</span>
+                            <span class="text-[9px] sm:text-[10px] text-gray-200 truncate">Metropolis Core</span>
+                        </button>
+                        <button id="btnLevel5" type="button" onclick="selectAndStartLevel(5)" data-category="cyber"
+                            class="arcade-btn bg-slate-900 border-2 border-red-500 hover:border-yellow-400 p-2 rounded-lg text-left transition flex flex-col justify-between h-14 cursor-pointer">
+                            <span class="text-[10px] sm:text-xs text-red-400 font-bold">ZONE 5 👑</span>
+                            <span class="text-[9px] sm:text-[10px] text-gray-200 truncate">Omega Boss</span>
+                        </button>
+                        <button id="btnLevel6" type="button" onclick="selectAndStartLevel(6)" data-category="cyber"
+                            class="arcade-btn bg-slate-900 border-2 border-emerald-500 hover:border-yellow-400 p-2 rounded-lg text-left transition flex flex-col justify-between h-14 cursor-pointer">
+                            <span class="text-[10px] sm:text-xs text-emerald-400 font-bold">ZONE 6</span>
+                            <span class="text-[9px] sm:text-[10px] text-gray-200 truncate">Sanctuary</span>
+                        </button>
+
+                        <button id="btnLevel7" type="button" onclick="selectAndStartLevel(7)" data-category="volcanic"
+                            class="arcade-btn bg-slate-900 border-2 border-orange-500 hover:border-yellow-400 p-2 rounded-lg text-left transition flex flex-col justify-between h-14 cursor-pointer">
+                            <span class="text-[10px] sm:text-xs text-orange-400 font-bold">ZONE 7</span>
+                            <span class="text-[9px] sm:text-[10px] text-gray-200 truncate">Volcano Cave</span>
+                        </button>
+                        <button id="btnLevel8" type="button" onclick="selectAndStartLevel(8)" data-category="volcanic"
+                            class="arcade-btn bg-slate-900 border-2 border-orange-500 hover:border-yellow-400 p-2 rounded-lg text-left transition flex flex-col justify-between h-14 cursor-pointer">
+                            <span class="text-[10px] sm:text-xs text-orange-400 font-bold">ZONE 8</span>
+                            <span class="text-[9px] sm:text-[10px] text-gray-200 truncate">Catwalks</span>
+                        </button>
+                        <button id="btnLevel9" type="button" onclick="selectAndStartLevel(9)" data-category="volcanic"
+                            class="arcade-btn bg-slate-900 border-2 border-amber-500 hover:border-yellow-400 p-2 rounded-lg text-left transition flex flex-col justify-between h-14 cursor-pointer">
+                            <span class="text-[10px] sm:text-xs text-amber-400 font-bold">ZONE 9</span>
+                            <span class="text-[9px] sm:text-[10px] text-gray-200 truncate">Obsidian Spire</span>
+                        </button>
+                        <button id="btnLevel10" type="button" onclick="selectAndStartLevel(10)" data-category="volcanic"
+                            class="arcade-btn bg-slate-900 border-2 border-red-500 hover:border-yellow-400 p-2 rounded-lg text-left transition flex flex-col justify-between h-14 cursor-pointer">
+                            <span class="text-[10px] sm:text-xs text-red-400 font-bold">ZONE 10</span>
+                            <span class="text-[9px] sm:text-[10px] text-gray-200 truncate">Foundry</span>
+                        </button>
+                        <button id="btnLevel11" type="button" onclick="selectAndStartLevel(11)" data-category="volcanic"
+                            class="arcade-btn bg-slate-900 border-2 border-red-600 hover:border-yellow-400 p-2 rounded-lg text-left transition flex flex-col justify-between h-14 cursor-pointer">
+                            <span class="text-[10px] sm:text-xs text-red-500 font-bold">ZONE 11 🔥</span>
+                            <span class="text-[9px] sm:text-[10px] text-gray-200 truncate">Ignis Boss</span>
+                        </button>
+                        <button id="btnLevel12" type="button" onclick="selectAndStartLevel(12)" data-category="volcanic"
+                            class="arcade-btn bg-slate-900 border-2 border-amber-400 hover:border-yellow-400 p-2 rounded-lg text-left transition flex flex-col justify-between h-14 cursor-pointer">
+                            <span class="text-[10px] sm:text-xs text-amber-300 font-bold">ZONE 12</span>
+                            <span class="text-[9px] sm:text-[10px] text-gray-200 truncate">Molten Vault</span>
+                        </button>
+                    </div>
+                </div>
+
+                <button id="btnBackToMenu" type="button" onclick="closeLevelSelect()"
+                    class="arcade-btn text-white text-xs px-6 py-2 rounded-lg font-bold tracking-widest cursor-pointer uppercase mt-2">
+                    BACK TO MENU
+                </button>
+            </div>
+
+            <!-- Pause Overlay -->
+            <div id="pauseOverlay"
+                class="absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 text-center z-20 hidden">
+                <h2 class="text-xl sm:text-3xl text-blue-400 mb-4 tracking-wider">GAME PAUSED</h2>
+                <div class="flex flex-col gap-3 w-full max-w-xs">
+                    <button id="btnResume" type="button" onclick="resumeGame()"
+                        class="arcade-btn bg-emerald-600 text-white text-xs sm:text-sm px-6 py-3 rounded-lg font-bold tracking-widest cursor-pointer uppercase">
+                        RESUME GAME
+                    </button>
+                    <button id="btnPauseLevelSelect" type="button" onclick="openLevelSelect()"
+                        class="arcade-btn bg-purple-600 text-white text-xs sm:text-sm px-6 py-3 rounded-lg font-bold tracking-widest cursor-pointer uppercase">
+                        SELECT LEVEL
+                    </button>
+                    <button id="btnRestartLevel" type="button" onclick="restartCurrentLevel()"
+                        class="arcade-btn bg-amber-600 text-white text-xs sm:text-sm px-6 py-3 rounded-lg font-bold tracking-widest cursor-pointer uppercase">
+                        RESTART LEVEL
+                    </button>
+                    <button id="btnPauseMainMenu" type="button" onclick="returnToMenu()"
+                        class="arcade-btn bg-slate-800 text-gray-300 text-xs sm:text-sm px-6 py-3 rounded-lg font-bold tracking-widest cursor-pointer uppercase">
+                        MAIN MENU
+                    </button>
+                </div>
+            </div>
+
+            <!-- Game Over / Victory Overlay -->
+            <div id="messageOverlay"
+                class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center z-20 hidden">
+                <h2 id="msgTitle" class="text-xl sm:text-3xl text-red-500 mb-4">GAME OVER</h2>
+                <p id="msgSub" class="text-xs sm:text-sm text-gray-300 mb-6">Final Score: 0</p>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button id="btnRetryCheckpoint" type="button" onclick="restartFromCheckpoint()"
+                        class="arcade-btn bg-emerald-600 text-white text-xs sm:text-sm px-5 py-3.5 rounded-lg font-bold tracking-widest cursor-pointer uppercase hidden">
+                        RETRY CHECKPOINT
+                    </button>
+                    <button id="btnRestartAll" type="button" onclick="resetGame()"
+                        class="arcade-btn text-white text-xs sm:text-sm px-5 py-3.5 rounded-lg font-bold tracking-widest cursor-pointer uppercase">
+                        RESTART LVL 1
+                    </button>
+                    <button id="btnMsgMainMenu" type="button" onclick="returnToMenu()"
+                        class="arcade-btn bg-purple-600 text-white text-xs sm:text-sm px-5 py-3.5 rounded-lg font-bold tracking-widest cursor-pointer uppercase">
+                        MAIN MENU
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Touch Controls for Mobile/Tablets -->
+        <div class="flex justify-between items-center bg-slate-900 px-4 py-3 border-t-2 border-blue-600 sm:hidden">
+            <div class="flex gap-2">
+                <button id="btnLeft"
+                    class="arcade-btn w-14 h-14 rounded-lg text-white font-bold text-lg flex items-center justify-center">◀</button>
+                <button id="btnRight"
+                    class="arcade-btn w-14 h-14 rounded-lg text-white font-bold text-lg flex items-center justify-center">▶</button>
+            </div>
+            <button id="btnJump"
+                class="arcade-btn arcade-btn-jump w-24 h-14 rounded-lg text-white font-bold text-xs tracking-wider flex items-center justify-center">JUMP</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set fixed internal resolution for sharp pixel arcade aesthetic
+        canvas.width = 800;
+        canvas.height = 500;
+
+        // Game State Variables
+        let gameState = 'MENU'; // MENU, PLAYING, GAMEOVER, VICTORY
+        let score = 0;
+        let lives = 4;
+        let currentLevel = 1;
+        let cameraX = 0;
+
+        // Input Tracking
+        const keys = {};
+
+        // Player Object
+        const player = {
+            x: 50,
+            y: 250,
+            width: 26,
+            height: 36,
+            vx: 0,
+            vy: 0,
+            speed: 4.5,
+            jumpForce: -11.5,
+            gravity: 0.52,
+            grounded: false,
+            hasDoubleJumped: false,
+            color: '#38bdf8',
+            facing: 'right'
+        };
+
+        // Level Elements
+        let platforms = [];
+        let coins = [];
+        let hazards = [];
+        let enemies = [];
+        let particles = [];
+        let goal = {};
+        let levelBanner = { text: '', timer: 0 };
+
+        // Boss & Checkpoint & Black Heart & Lava State Variables
+        let boss = null;
+        let ignisBoss = null;
+        let bossProjectiles = [];
+        let playerMissiles = [];
+        let telegraphedAttacks = [];
+        let flamePillars = [];
+        let bossItem = null;
+        let bossItemSpawnTimer = 0;
+        let unlockedCheckpoint = 1;
+        let checkpointScore = 0;
+        let checkpointLevel = 1;
+        let hasUnlockedBlackHeart = false;
+        let hasBlackHeartShield = false;
+
+        // Health & Lava System (2 HP = 1 Heart, 8 HP max = 4 Hearts)
+        let playerHp = 8;
+        let maxHp = 8;
+        let invincibilityTimer = 0;
+        let lavas = [];
+        let lavaTimeFrames = 0;
+        let lavaSurgeY = 440;
+        let lavaSurgeTimer = 0;
+        let currentLevelPage = 1;
+
+        // Juice & FX System
+        let playerScaleX = 1;
+        let playerScaleY = 1;
+        let coyoteTimer = 0;
+        let jumpBufferTimer = 0;
+        let screenShakeTimer = 0;
+        let screenShakeIntensity = 0;
+        let floatingTexts = [];
+        let playerInLavaState = false;
+
+        function triggerScreenShake(intensity = 6) {
+            screenShakeTimer = 12;
+            screenShakeIntensity = intensity;
+        }
+
+        function spawnFloatingText(x, y, text, color) {
+            floatingTexts.push({
+                x: x,
+                y: y,
+                text: text,
+                color: color,
+                alpha: 1.0,
+                vy: -1.2
+            });
+        }
+
+        function updateFloatingTexts() {
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                let ft = floatingTexts[i];
+                ft.y += ft.vy;
+                ft.alpha -= 0.025;
+                if (ft.alpha <= 0) floatingTexts.splice(i, 1);
+            }
+        }
+
+        function switchLevelPage(page) {
+            currentLevelPage = page;
+            const p1 = document.getElementById('lvlPage1');
+            const p2 = document.getElementById('lvlPage2');
+            const btn1 = document.getElementById('tabBtnPage1');
+            const btn2 = document.getElementById('tabBtnPage2');
+
+            if (page === 1) {
+                p1.classList.remove('hidden');
+                p2.classList.add('hidden');
+                btn1.className = 'arcade-btn bg-purple-600 text-white text-[10px] sm:text-xs px-3 py-1.5 rounded font-bold uppercase cursor-pointer';
+                btn2.className = 'arcade-btn bg-slate-800 border border-purple-500 text-gray-300 text-[10px] sm:text-xs px-3 py-1.5 rounded font-bold uppercase cursor-pointer';
+            } else {
+                p2.classList.remove('hidden');
+                p1.classList.add('hidden');
+                btn2.className = 'arcade-btn bg-purple-600 text-white text-[10px] sm:text-xs px-3 py-1.5 rounded font-bold uppercase cursor-pointer';
+                btn1.className = 'arcade-btn bg-slate-800 border border-purple-500 text-gray-300 text-[10px] sm:text-xs px-3 py-1.5 rounded font-bold uppercase cursor-pointer';
+            }
+        }
+
+        function loadLevel(lvl) {
+            platforms = [];
+            coins = [];
+            hazards = [];
+            lavas = [];
+            enemies = [];
+            particles = [];
+            floatingTexts = [];
+            cameraX = 0;
+            boss = null;
+            ignisBoss = null;
+            bossProjectiles = [];
+            playerMissiles = [];
+            telegraphedAttacks = [];
+            flamePillars = [];
+            bossItem = null;
+            lavaTimeFrames = 0;
+            lavaSurgeY = 440;
+            lavaSurgeTimer = 0;
+            coyoteTimer = 0;
+            jumpBufferTimer = 0;
+            playerScaleX = 1;
+            playerScaleY = 1;
+            playerInLavaState = false;
+
+            if (hasUnlockedBlackHeart) {
+                hasBlackHeartShield = true;
+            }
+
+            const levelNames = {
+                1: 'ZONE 1: NEON ROADS',
+                2: 'ZONE 2: SKYWAY TOWERS',
+                3: 'ZONE 3: VOID PITFALLS',
+                4: 'ZONE 4: METROPOLIS CORE',
+                5: 'ZONE 5: OMEGA SENTINEL [BOSS]',
+                6: 'ZONE 6: SANCTUARY CHASM',
+                7: 'ZONE 7: VOLCANIC CAVERNS',
+                8: 'ZONE 8: MAGMA CATWALKS',
+                9: 'ZONE 9: OBSIDIAN SPIRE',
+                10: 'ZONE 10: INFERNO FOUNDRY',
+                11: 'ZONE 11: IGNIS PRIME [BOSS]',
+                12: 'ZONE 12: MOLTEN VAULT'
+            };
+            levelBanner = { text: levelNames[lvl] || `LEVEL ${lvl}`, timer: 120 };
+
+            player.x = 60;
+            player.y = 200;
+            player.vx = 0;
+            player.vy = 0;
+            player.hasDoubleJumped = false;
+
+            if (lvl === 1) {
+                // Ground & Platforms
+                platforms.push({ x: 0, y: 420, width: 650, height: 80, type: 'normal' });
+                platforms.push({ x: 700, y: 360, width: 450, height: 140, type: 'normal' });
+                platforms.push({ x: 1200, y: 300, width: 600, height: 200, type: 'normal' });
+
+                // Floating platforms
+                platforms.push({ x: 280, y: 300, width: 120, height: 20, type: 'normal' });
+                platforms.push({ x: 470, y: 220, width: 110, height: 20, type: 'normal' });
+                platforms.push({ x: 800, y: 240, width: 140, height: 20, type: 'normal' });
+                platforms.push({ x: 1020, y: 160, width: 110, height: 20, type: 'normal' });
+
+                // Hazards (Spikes)
+                hazards.push({ x: 380, y: 400, width: 50, height: 20 });
+                hazards.push({ x: 850, y: 340, width: 60, height: 20 });
+
+                // Patrolling Enemies
+                enemies.push({
+                    type: 'ground', x: 200, y: 390, startX: 120, endX: 380, width: 30, height: 30, speed: 2, direction: 1
+                });
+                enemies.push({
+                    type: 'ground', x: 780, y: 330, startX: 720, endX: 1020, width: 30, height: 30, speed: 2.2, direction: 1
+                });
+
+                // Collectible Coins
+                coins.push({ x: 340, y: 250, collected: false });
+                coins.push({ x: 520, y: 170, collected: false });
+                coins.push({ x: 750, y: 310, collected: false });
+                coins.push({ x: 860, y: 190, collected: false });
+                coins.push({ x: 1070, y: 110, collected: false });
+                coins.push({ x: 1400, y: 250, collected: false });
+
+                // Goal Portal
+                goal = { x: 1600, y: 200, width: 40, height: 100 };
+            } else if (lvl === 2) {
+                // Advanced level layout
+                platforms.push({ x: 0, y: 420, width: 400, height: 80, type: 'normal' });
+                platforms.push({ x: 480, y: 350, width: 160, height: 20, type: 'normal' });
+                platforms.push({ x: 740, y: 280, width: 160, height: 20, type: 'normal' });
+                platforms.push({ x: 1000, y: 210, width: 220, height: 20, type: 'normal' });
+                platforms.push({ x: 1320, y: 340, width: 500, height: 160, type: 'normal' });
+
+                // Hazards
+                hazards.push({ x: 530, y: 330, width: 60, height: 20 });
+                hazards.push({ x: 1080, y: 190, width: 70, height: 20 });
+                hazards.push({ x: 1450, y: 320, width: 90, height: 20 });
+
+                // Patrolling Enemies
+                enemies.push({
+                    type: 'ground', x: 1030, y: 180, startX: 1010, endX: 1180, width: 30, height: 30, speed: 2.8, direction: 1
+                });
+                enemies.push({
+                    type: 'ground', x: 1380, y: 310, startX: 1340, endX: 1650, width: 30, height: 30, speed: 2.5, direction: 1
+                });
+
+                // Collectible Coins
+                coins.push({ x: 280, y: 370, collected: false });
+                coins.push({ x: 560, y: 300, collected: false });
+                coins.push({ x: 820, y: 230, collected: false });
+                coins.push({ x: 1070, y: 160, collected: false });
+                coins.push({ x: 1400, y: 290, collected: false });
+                coins.push({ x: 1620, y: 290, collected: false });
+
+                // Goal Portal
+                goal = { x: 1720, y: 240, width: 40, height: 100 };
+            } else if (lvl === 3) {
+                // LEVEL 3: Pitfall Abyss
+                platforms.push({ x: 0, y: 400, width: 220, height: 100, type: 'normal' });
+                platforms.push({ x: 330, y: 370, width: 90, height: 130, type: 'normal' });
+                platforms.push({ x: 530, y: 300, width: 110, height: 20, type: 'normal' });
+                platforms.push({ x: 740, y: 220, width: 90, height: 280, type: 'normal' });
+                platforms.push({ x: 940, y: 320, width: 120, height: 20, type: 'normal' });
+                platforms.push({ x: 1180, y: 240, width: 100, height: 20, type: 'normal' });
+                platforms.push({ x: 1390, y: 310, width: 90, height: 20, type: 'normal' });
+                platforms.push({ x: 1580, y: 370, width: 340, height: 130, type: 'normal' });
+
+                hazards.push({ x: 980, y: 300, width: 40, height: 20 });
+                hazards.push({ x: 1660, y: 350, width: 50, height: 20 });
+
+                enemies.push({ type: 'flying', x: 265, y: 220, startY: 150, endY: 360, width: 28, height: 26, speed: 2.2, direction: 1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 465, y: 180, startY: 130, endY: 330, width: 28, height: 26, speed: 2.5, direction: -1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 680, y: 150, startY: 110, endY: 280, width: 28, height: 26, speed: 2.7, direction: 1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 875, y: 220, startY: 160, endY: 360, width: 28, height: 26, speed: 2.4, direction: -1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 1110, y: 170, startY: 120, endY: 320, width: 28, height: 26, speed: 2.6, direction: 1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 1325, y: 200, startY: 150, endY: 350, width: 28, height: 26, speed: 2.8, direction: -1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 1520, y: 210, startY: 160, endY: 350, width: 28, height: 26, speed: 2.4, direction: 1, wingAnim: 0 });
+
+                coins.push({ x: 170, y: 340, collected: false });
+                coins.push({ x: 275, y: 200, collected: false });
+                coins.push({ x: 375, y: 310, collected: false });
+                coins.push({ x: 480, y: 190, collected: false });
+                coins.push({ x: 585, y: 240, collected: false });
+                coins.push({ x: 785, y: 160, collected: false });
+                coins.push({ x: 990, y: 250, collected: false });
+                coins.push({ x: 1120, y: 170, collected: false });
+                coins.push({ x: 1230, y: 180, collected: false });
+                coins.push({ x: 1435, y: 250, collected: false });
+                coins.push({ x: 1620, y: 310, collected: false });
+
+                goal = { x: 1780, y: 270, width: 40, height: 100 };
+            } else if (lvl === 4) {
+                // LEVEL 4: Metropolis Core
+                platforms.push({ x: 0, y: 400, width: 320, height: 100, type: 'normal' });
+                platforms.push({ x: 420, y: 340, width: 280, height: 25, type: 'normal' });
+                platforms.push({ x: 790, y: 250, width: 260, height: 25, type: 'normal' });
+                platforms.push({ x: 1140, y: 360, width: 350, height: 30, type: 'normal' });
+                platforms.push({ x: 1580, y: 230, width: 220, height: 25, type: 'normal' });
+                platforms.push({ x: 1890, y: 330, width: 440, height: 170, type: 'normal' });
+
+                hazards.push({ x: 490, y: 320, width: 60, height: 20 });
+                hazards.push({ x: 1220, y: 340, width: 60, height: 20 });
+                hazards.push({ x: 1960, y: 310, width: 60, height: 20 });
+
+                enemies.push({ type: 'ground', x: 160, y: 370, startX: 100, endX: 280, width: 30, height: 30, speed: 2.2, direction: 1 });
+                enemies.push({ type: 'ground', x: 600, y: 310, startX: 570, endX: 670, width: 30, height: 30, speed: 2.4, direction: 1 });
+                enemies.push({ type: 'ground', x: 860, y: 220, startX: 820, endX: 1010, width: 30, height: 30, speed: 3.0, direction: 1 });
+                enemies.push({ type: 'ground', x: 1370, y: 330, startX: 1320, endX: 1460, width: 30, height: 30, speed: 2.5, direction: 1 });
+                enemies.push({ type: 'ground', x: 1650, y: 200, startX: 1600, endX: 1770, width: 30, height: 30, speed: 2.7, direction: 1 });
+                enemies.push({ type: 'ground', x: 2080, y: 300, startX: 2040, endX: 2190, width: 30, height: 30, speed: 3.0, direction: 1 });
+
+                enemies.push({ type: 'flying', x: 360, y: 190, startY: 130, endY: 360, width: 28, height: 26, speed: 2.5, direction: 1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 735, y: 160, startY: 120, endY: 330, width: 28, height: 26, speed: 2.8, direction: -1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 1085, y: 200, startY: 140, endY: 350, width: 28, height: 26, speed: 2.6, direction: 1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 1240, y: 180, startY: 140, endY: 300, width: 28, height: 26, speed: 2.9, direction: 1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 1525, y: 170, startY: 120, endY: 330, width: 28, height: 26, speed: 2.7, direction: -1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 1835, y: 190, startY: 140, endY: 340, width: 28, height: 26, speed: 3.1, direction: 1, wingAnim: 0 });
+
+                coins.push({ x: 200, y: 340, collected: false });
+                coins.push({ x: 360, y: 230, collected: false });
+                coins.push({ x: 470, y: 290, collected: false });
+                coins.push({ x: 650, y: 290, collected: false });
+                coins.push({ x: 735, y: 190, collected: false });
+                coins.push({ x: 920, y: 200, collected: false });
+                coins.push({ x: 1085, y: 260, collected: false });
+                coins.push({ x: 1190, y: 310, collected: false });
+                coins.push({ x: 1390, y: 280, collected: false });
+                coins.push({ x: 1525, y: 200, collected: false });
+                coins.push({ x: 1670, y: 170, collected: false });
+                coins.push({ x: 1835, y: 220, collected: false });
+                coins.push({ x: 2000, y: 260, collected: false });
+                coins.push({ x: 2150, y: 270, collected: false });
+
+                goal = { x: 2240, y: 230, width: 40, height: 100 };
+            } else if (lvl === 5) {
+                // LEVEL 5: Fixed Arena Boss Fight - OMEGA SENTINEL
+                platforms.push({ x: 0, y: 440, width: 800, height: 60, type: 'normal' });
+                platforms.push({ x: 50, y: 320, width: 190, height: 20, type: 'normal' });
+                platforms.push({ x: 560, y: 320, width: 190, height: 20, type: 'normal' });
+                platforms.push({ x: 300, y: 220, width: 200, height: 20, type: 'normal' });
+                platforms.push({ x: 320, y: 360, width: 160, height: 20, type: 'normal' });
+
+                boss = {
+                    x: 400,
+                    y: 110,
+                    angle: 0,
+                    maxHp: 8,
+                    hp: 8,
+                    hitFlashTimer: 0,
+                    attackTimer: 0,
+                    pattern: 0
+                };
+                bossProjectiles = [];
+                playerMissiles = [];
+                bossItem = null;
+                bossItemSpawnTimer = 80;
+
+                player.x = 100;
+                player.y = 380;
+            } else if (lvl === 6) {
+                // LEVEL 6: Post-Boss Sanctuary
+                platforms.push({ x: 0, y: 400, width: 1100, height: 100, type: 'normal' });
+                for (let i = 0; i < 12; i++) {
+                    coins.push({ x: 150 + (i * 70), y: 320 - (Math.sin(i * 0.5) * 40), collected: false });
+                }
+                goal = { x: 950, y: 260, width: 40, height: 100 };
+            } else if (lvl === 7) {
+                // LEVEL 7: Volcanic Caverns (Introduces LAVA Hazard!)
+                platforms.push({ x: 0, y: 400, width: 300, height: 100, type: 'normal' });
+                platforms.push({ x: 400, y: 340, width: 180, height: 20, type: 'normal' });
+                platforms.push({ x: 670, y: 260, width: 150, height: 20, type: 'normal' });
+                platforms.push({ x: 920, y: 350, width: 220, height: 20, type: 'normal' });
+                platforms.push({ x: 1240, y: 400, width: 500, height: 100, type: 'normal' });
+
+                // Lava Pools (Deals 0.5 heart initially, 0.5 heart/sec after 2s inside)
+                lavas.push({ x: 300, y: 440, width: 370, height: 60 });
+                lavas.push({ x: 820, y: 440, width: 420, height: 60 });
+
+                // Spikes & Ground Enemy
+                hazards.push({ x: 460, y: 320, width: 50, height: 20 });
+                enemies.push({ type: 'ground', x: 1300, y: 370, startX: 1250, endX: 1500, width: 30, height: 30, speed: 2.5, direction: 1 });
+                enemies.push({ type: 'flying', x: 500, y: 180, startY: 130, endY: 300, width: 28, height: 26, speed: 2.3, direction: 1, wingAnim: 0 });
+
+                // Coins
+                coins.push({ x: 200, y: 340, collected: false });
+                coins.push({ x: 440, y: 290, collected: false });
+                coins.push({ x: 740, y: 210, collected: false });
+                coins.push({ x: 1000, y: 300, collected: false });
+                coins.push({ x: 1400, y: 340, collected: false });
+
+                goal = { x: 1600, y: 280, width: 40, height: 100 };
+            } else if (lvl === 8) {
+                // LEVEL 8: Magma Catwalks (Catwalks over continuous Lava lake)
+                platforms.push({ x: 0, y: 400, width: 240, height: 100, type: 'normal' });
+                platforms.push({ x: 320, y: 330, width: 200, height: 20, type: 'normal' });
+                platforms.push({ x: 600, y: 250, width: 160, height: 20, type: 'normal' });
+                platforms.push({ x: 840, y: 330, width: 200, height: 20, type: 'normal' });
+                platforms.push({ x: 1120, y: 230, width: 180, height: 20, type: 'normal' });
+                platforms.push({ x: 1380, y: 360, width: 450, height: 140, type: 'normal' });
+
+                // Vast Lava Lake under catwalks (spanning between start and end ground)
+                lavas.push({ x: 240, y: 440, width: 1140, height: 60 });
+
+                enemies.push({ type: 'ground', x: 360, y: 300, startX: 330, endX: 480, width: 30, height: 30, speed: 2.6, direction: 1 });
+                enemies.push({ type: 'ground', x: 880, y: 300, startX: 850, endX: 1000, width: 30, height: 30, speed: 2.8, direction: 1 });
+                enemies.push({ type: 'flying', x: 550, y: 170, startY: 120, endY: 330, width: 28, height: 26, speed: 2.6, direction: -1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 1050, y: 160, startY: 110, endY: 310, width: 28, height: 26, speed: 2.9, direction: 1, wingAnim: 0 });
+
+                coins.push({ x: 180, y: 340, collected: false });
+                coins.push({ x: 400, y: 280, collected: false });
+                coins.push({ x: 670, y: 200, collected: false });
+                coins.push({ x: 920, y: 280, collected: false });
+                coins.push({ x: 1200, y: 180, collected: false });
+                coins.push({ x: 1500, y: 300, collected: false });
+
+                goal = { x: 1700, y: 240, width: 40, height: 100 };
+            } else if (lvl === 9) {
+                // LEVEL 9: Obsidian Spire (Vertical stepping stones & Lava lakes)
+                platforms.push({ x: 0, y: 400, width: 200, height: 100, type: 'normal' });
+                platforms.push({ x: 280, y: 340, width: 100, height: 20, type: 'normal' });
+                platforms.push({ x: 450, y: 270, width: 100, height: 20, type: 'normal' });
+                platforms.push({ x: 630, y: 200, width: 120, height: 20, type: 'normal' });
+                platforms.push({ x: 830, y: 280, width: 110, height: 20, type: 'normal' });
+                platforms.push({ x: 1020, y: 360, width: 110, height: 20, type: 'normal' });
+                platforms.push({ x: 1210, y: 250, width: 130, height: 20, type: 'normal' });
+                platforms.push({ x: 1420, y: 380, width: 420, height: 120, type: 'normal' });
+
+                lavas.push({ x: 200, y: 440, width: 1220, height: 60 });
+
+                hazards.push({ x: 660, y: 180, width: 40, height: 20 });
+                hazards.push({ x: 1500, y: 360, width: 60, height: 20 });
+
+                enemies.push({ type: 'flying', x: 380, y: 190, startY: 130, endY: 350, width: 28, height: 26, speed: 2.7, direction: 1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 750, y: 160, startY: 100, endY: 300, width: 28, height: 26, speed: 2.8, direction: -1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 1120, y: 180, startY: 120, endY: 340, width: 28, height: 26, speed: 3.0, direction: 1, wingAnim: 0 });
+                enemies.push({ type: 'ground', x: 1580, y: 350, startX: 1540, endX: 1720, width: 30, height: 30, speed: 2.8, direction: 1 });
+
+                for (let i = 0; i < 7; i++) {
+                    coins.push({ x: 320 + (i * 180), y: 240 - (i % 2 * 60), collected: false });
+                }
+
+                goal = { x: 1720, y: 260, width: 40, height: 100 };
+            } else if (lvl === 10) {
+                // LEVEL 10: Inferno Foundry (Intense lava foundry before boss)
+                platforms.push({ x: 0, y: 400, width: 260, height: 100, type: 'normal' });
+                platforms.push({ x: 340, y: 320, width: 220, height: 20, type: 'normal' });
+                platforms.push({ x: 640, y: 240, width: 200, height: 20, type: 'normal' });
+                platforms.push({ x: 920, y: 340, width: 260, height: 20, type: 'normal' });
+                platforms.push({ x: 1260, y: 230, width: 200, height: 20, type: 'normal' });
+                platforms.push({ x: 1540, y: 330, width: 500, height: 170, type: 'normal' });
+
+                lavas.push({ x: 260, y: 440, width: 1280, height: 60 });
+
+                hazards.push({ x: 420, y: 300, width: 50, height: 20 });
+                hazards.push({ x: 1020, y: 320, width: 60, height: 20 });
+                hazards.push({ x: 1650, y: 310, width: 60, height: 20 });
+
+                enemies.push({ type: 'ground', x: 380, y: 290, startX: 350, endX: 510, width: 30, height: 30, speed: 3.0, direction: 1 });
+                enemies.push({ type: 'ground', x: 700, y: 210, startX: 660, endX: 800, width: 30, height: 30, speed: 3.2, direction: 1 });
+                enemies.push({ type: 'ground', x: 1740, y: 300, startX: 1700, endX: 1880, width: 30, height: 30, speed: 3.2, direction: 1 });
+
+                enemies.push({ type: 'flying', x: 280, y: 180, startY: 120, endY: 340, width: 28, height: 26, speed: 2.8, direction: 1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 860, y: 160, startY: 100, endY: 310, width: 28, height: 26, speed: 3.1, direction: -1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 1180, y: 170, startY: 110, endY: 330, width: 28, height: 26, speed: 3.0, direction: 1, wingAnim: 0 });
+                enemies.push({ type: 'flying', x: 1480, y: 190, startY: 130, endY: 350, width: 28, height: 26, speed: 3.3, direction: -1, wingAnim: 0 });
+
+                for (let i = 0; i < 9; i++) {
+                    coins.push({ x: 200 + (i * 180), y: 260 - (i % 3 * 40), collected: false });
+                }
+
+                goal = { x: 1900, y: 210, width: 40, height: 100 };
+            } else if (lvl === 11) {
+                // LEVEL 11: Fixed Arena Boss Fight - IGNIS PRIME (Fiery Lava Titan!)
+                platforms.push({ x: 50, y: 320, width: 180, height: 20, type: 'normal' }); // Left Platform
+                platforms.push({ x: 570, y: 320, width: 180, height: 20, type: 'normal' }); // Right Platform
+                platforms.push({ x: 310, y: 350, width: 180, height: 20, type: 'normal' }); // Center Low
+                platforms.push({ x: 290, y: 210, width: 220, height: 20, type: 'normal' }); // Center High
+
+                // Lava on Arena Floor!
+                lavas.push({ x: 0, y: 440, width: 800, height: 60 });
+
+                ignisBoss = {
+                    x: 400,
+                    y: 110,
+                    angle: 0,
+                    maxHp: 8,
+                    hp: 8,
+                    hitFlashTimer: 0,
+                    attackTimer: 0,
+                    surgeTimer: 0,
+                    surging: false
+                };
+                bossProjectiles = [];
+                playerMissiles = [];
+                telegraphedAttacks = [];
+                flamePillars = [];
+                bossItem = null;
+                bossItemSpawnTimer = 70;
+
+                player.x = 100;
+                player.y = 260;
+            } else if (lvl === 12) {
+                // LEVEL 12: Molten Vault (Sanctuary & Grand Victory Run - NO LAVA!)
+                platforms.push({ x: 0, y: 400, width: 1200, height: 100, type: 'normal' });
+
+                for (let i = 0; i < 15; i++) {
+                    coins.push({ x: 150 + (i * 60), y: 320 - (Math.sin(i * 0.4) * 50), collected: false });
+                }
+
+                goal = { x: 1050, y: 260, width: 40, height: 100 };
+            }
+        }
+
+        let previousGameState = 'MENU';
+
+        function showOverlay(overlayId) {
+            const overlays = ['menuOverlay', 'levelSelectOverlay', 'pauseOverlay', 'messageOverlay'];
+            overlays.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    if (id === overlayId) {
+                        el.classList.remove('hidden');
+                    } else {
+                        el.classList.add('hidden');
+                    }
+                }
+            });
+        }
+
+        window.addEventListener('keydown', e => {
+            // Escape or P toggles Pause during play / goes back from menus
+            if (e.code === 'Escape' || e.code === 'KeyP') {
+                if (gameState === 'PLAYING') {
+                    pauseGame();
+                    e.preventDefault();
+                } else if (gameState === 'PAUSED') {
+                    resumeGame();
+                    e.preventDefault();
+                } else if (gameState === 'LEVEL_SELECT') {
+                    closeLevelSelect();
+                    e.preventDefault();
+                }
+                return;
+            }
+
+            // Only capture jump & movement keys when actively playing!
+            if (gameState === 'PLAYING') {
+                if (['Space', 'ArrowUp', 'KeyW'].includes(e.code)) {
+                    handleJump();
+                    e.preventDefault();
+                }
+                keys[e.code] = true;
+                if (['ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD'].includes(e.code)) {
+                    e.preventDefault();
+                }
+            }
+        });
+
+        window.addEventListener('keyup', e => {
+            keys[e.code] = false;
+        });
+
+        function handleJump() {
+            if (gameState !== 'PLAYING') return;
+            jumpBufferTimer = 8;
+            executeBufferedJump();
+        }
+
+        function executeBufferedJump() {
+            if (gameState !== 'PLAYING' || jumpBufferTimer <= 0) return;
+
+            let inLava = playerInLavaState;
+
+            if (player.grounded || coyoteTimer > 0 || inLava) {
+                player.vy = player.jumpForce;
+                player.grounded = false;
+                coyoteTimer = 0;
+                jumpBufferTimer = 0;
+                player.hasDoubleJumped = false;
+                playerScaleX = 0.75;
+                playerScaleY = 1.25;
+                spawnParticles(player.x + player.width / 2, player.y + player.height, inLava ? '#f97316' : '#38bdf8', inLava ? 10 : 6);
+            } else if (!player.hasDoubleJumped) {
+                player.vy = player.jumpForce * 0.9;
+                player.hasDoubleJumped = true;
+                jumpBufferTimer = 0;
+                playerScaleX = 0.8;
+                playerScaleY = 1.2;
+                spawnParticles(player.x + player.width / 2, player.y + player.height / 2, '#ec4899', 10);
+            }
+        }
+
+        // Touch Control bindings
+        function bindTouch(id, code, isJump = false) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const triggerOn = (e) => {
+                if (gameState === 'PLAYING') {
+                    e.preventDefault();
+                    if (isJump) handleJump();
+                    else keys[code] = true;
+                }
+            };
+            const triggerOff = (e) => {
+                if (gameState === 'PLAYING') {
+                    e.preventDefault();
+                    if (!isJump) keys[code] = false;
+                }
+            };
+
+            el.addEventListener('touchstart', triggerOn, { passive: false });
+            el.addEventListener('touchend', triggerOff, { passive: false });
+            el.addEventListener('mousedown', triggerOn);
+            el.addEventListener('mouseup', triggerOff);
+        }
+        bindTouch('btnLeft', 'ArrowLeft', false);
+        bindTouch('btnRight', 'ArrowRight', false);
+        bindTouch('btnJump', 'Space', true);
+
+        function spawnParticles(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: (Math.random() - 0.5) * 5,
+                    radius: Math.random() * 3 + 1,
+                    color: color,
+                    alpha: 1
+                });
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= 0.03;
+                if (p.alpha <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function checkCollision(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                rect1.x + rect1.width > rect2.x &&
+                rect1.y < rect2.y + rect2.height &&
+                rect1.y + rect1.height > rect2.y;
+        }
+
+        function startGame() {
+            showOverlay(null);
+            score = 0;
+            playerHp = 8;
+            lives = 4;
+            currentLevel = 1;
+            unlockedCheckpoint = 1;
+            checkpointScore = 0;
+            checkpointLevel = 1;
+            updateHUD();
+            loadLevel(currentLevel);
+            gameState = 'PLAYING';
+        }
+
+        function openLevelSelect() {
+            previousGameState = gameState;
+            gameState = 'LEVEL_SELECT';
+            showOverlay('levelSelectOverlay');
+        }
+
+        function closeLevelSelect() {
+            if (previousGameState === 'PAUSED') {
+                gameState = 'PAUSED';
+                showOverlay('pauseOverlay');
+            } else {
+                gameState = 'MENU';
+                showOverlay('menuOverlay');
+            }
+        }
+
+        function filterLevelGrid(category) {
+            const btnAll = document.getElementById('tabBtnAll');
+            const btnCyber = document.getElementById('tabBtnCyber');
+            const btnVolcanic = document.getElementById('tabBtnVolcanic');
+
+            const setTabStyle = (btn, active) => {
+                if (!btn) return;
+                btn.className = active
+                    ? 'arcade-btn bg-purple-600 text-white px-2.5 py-1 rounded font-bold uppercase cursor-pointer'
+                    : 'arcade-btn bg-slate-800 border border-purple-500 text-gray-300 px-2.5 py-1 rounded font-bold uppercase cursor-pointer';
+            };
+
+            setTabStyle(btnAll, category === 'all');
+            setTabStyle(btnCyber, category === 'cyber');
+            setTabStyle(btnVolcanic, category === 'volcanic');
+
+            for (let i = 1; i <= 12; i++) {
+                const btn = document.getElementById(`btnLevel${i}`);
+                if (btn) {
+                    const cat = btn.getAttribute('data-category');
+                    if (category === 'all' || cat === category) {
+                        btn.classList.remove('hidden');
+                    } else {
+                        btn.classList.add('hidden');
+                    }
+                }
+            }
+        }
+
+        function selectAndStartLevel(lvl) {
+            showOverlay(null);
+            score = 0;
+            playerHp = 8;
+            lives = Math.ceil(playerHp / 2);
+            currentLevel = lvl;
+            updateHUD();
+            loadLevel(currentLevel);
+            gameState = 'PLAYING';
+        }
+
+        function togglePause() {
+            if (gameState === 'PLAYING') {
+                pauseGame();
+            } else if (gameState === 'PAUSED') {
+                resumeGame();
+            }
+        }
+
+        function pauseGame() {
+            if (gameState !== 'PLAYING') return;
+            gameState = 'PAUSED';
+            showOverlay('pauseOverlay');
+        }
+
+        function resumeGame() {
+            showOverlay(null);
+            gameState = 'PLAYING';
+        }
+
+        function restartCurrentLevel() {
+            showOverlay(null);
+            playerHp = 8;
+            lives = Math.ceil(playerHp / 2);
+            updateHUD();
+            loadLevel(currentLevel);
+            gameState = 'PLAYING';
+        }
+
+        function returnToMenu() {
+            showOverlay('menuOverlay');
+            gameState = 'MENU';
+        }
+
+        function resetGame() {
+            showOverlay(null);
+            startGame();
+        }
+
+        function restartFromCheckpoint() {
+            showOverlay(null);
+            currentLevel = checkpointLevel;
+            playerHp = 8;
+            lives = 4;
+            score = checkpointScore;
+            updateHUD();
+            loadLevel(currentLevel);
+            gameState = 'PLAYING';
+        }
+
+        function takeDamage(hpAmount = 1) {
+            if (invincibilityTimer > 0) return false;
+
+            if (hasBlackHeartShield) {
+                // Black Heart shield nullifies this instance of damage!
+                hasBlackHeartShield = false;
+                invincibilityTimer = 35; // ~0.6s invulnerability
+                updateHUD();
+                triggerScreenShake(6);
+                spawnFloatingText(player.x + player.width / 2, player.y - 10, 'SHIELD BLOCKED!', '#c084fc');
+                spawnParticles(player.x + player.width / 2, player.y + player.height / 2, '#334155', 20);
+                spawnParticles(player.x + player.width / 2, player.y + player.height / 2, '#c084fc', 20);
+                return true;
+            }
+
+            playerHp -= hpAmount;
+            if (playerHp < 0) playerHp = 0;
+            lives = Math.ceil(playerHp / 2);
+            invincibilityTimer = 25; // ~0.4s invulnerability
+            updateHUD();
+            triggerScreenShake(8);
+            playerScaleX = 1.3;
+            playerScaleY = 0.7;
+
+            let dmgText = hpAmount === 1 ? '-0.5 ❤️' : '-1 ❤️';
+            spawnFloatingText(player.x + player.width / 2, player.y - 10, dmgText, '#ef4444');
+            spawnParticles(player.x + player.width / 2, player.y + player.height / 2, '#ef4444', 15);
+
+            if (playerHp <= 0) {
+                gameState = 'GAMEOVER';
+                document.getElementById('msgTitle').innerText = 'GAME OVER';
+                document.getElementById('msgTitle').className = 'text-xl sm:text-3xl text-red-500 mb-4';
+                document.getElementById('msgSub').innerText = `Final Score: ${score}`;
+
+                const retryBtn = document.getElementById('btnRetryCheckpoint');
+                const mainBtn = document.getElementById('btnRestartAll');
+
+                if (unlockedCheckpoint > 1) {
+                    retryBtn.classList.remove('hidden');
+                    retryBtn.innerText = `RETRY CHECKPOINT (LVL ${checkpointLevel})`;
+                    mainBtn.innerText = 'RESTART LVL 1';
+                } else {
+                    retryBtn.classList.add('hidden');
+                    mainBtn.innerText = 'PLAY AGAIN';
+                }
+
+                document.getElementById('messageOverlay').classList.remove('hidden');
+            }
+            return true;
+        }
+
+        function loseLife() {
+            // Full heart / spike / enemy collision damage (2 HP = 1 full heart)
+            if (hasBlackHeartShield) {
+                hasBlackHeartShield = false;
+                invincibilityTimer = 35;
+                updateHUD();
+                spawnParticles(player.x + player.width / 2, player.y + player.height / 2, '#334155', 20);
+                spawnParticles(player.x + player.width / 2, player.y + player.height / 2, '#c084fc', 20);
+                if (player.y > canvas.height) {
+                    player.x = (currentLevel === 5 || currentLevel === 11) ? 100 : 60;
+                    player.y = (currentLevel === 5 || currentLevel === 11) ? 260 : 200;
+                    player.vx = 0;
+                    player.vy = 0;
+                    cameraX = 0;
+                }
+                return;
+            }
+
+            takeDamage(2);
+
+            if (playerHp > 0 && player.y > canvas.height) {
+                // Respawn safely
+                player.x = (currentLevel === 5 || currentLevel === 11) ? 100 : 60;
+                player.y = (currentLevel === 5 || currentLevel === 11) ? 260 : 200;
+                player.vx = 0;
+                player.vy = 0;
+                player.hasDoubleJumped = false;
+                cameraX = 0;
+            }
+        }
+
+        function nextLevel() {
+            if (currentLevel === 4) {
+                // Checkpoint 1 after Level 4 (Level 5 Boss Fight)
+                unlockedCheckpoint = 5;
+                checkpointLevel = 5;
+                checkpointScore = score;
+                currentLevel = 5;
+                document.getElementById('levelVal').innerText = currentLevel;
+                loadLevel(5);
+            } else if (currentLevel === 5) {
+                // Defeating Omega Sentinel unlocks Black Heart shield & Checkpoint 2!
+                hasUnlockedBlackHeart = true;
+                hasBlackHeartShield = true;
+                unlockedCheckpoint = 6;
+                checkpointLevel = 6;
+                checkpointScore = score;
+                currentLevel = 6;
+                document.getElementById('levelVal').innerText = currentLevel;
+                loadLevel(6);
+                levelBanner = { text: 'BLACK HEART UNLOCKED! (SHIELD ACTIVE)', timer: 140 };
+            } else if (currentLevel === 10) {
+                // Checkpoint 3 before Level 11 Ignis Prime Boss
+                unlockedCheckpoint = 11;
+                checkpointLevel = 11;
+                checkpointScore = score;
+                currentLevel = 11;
+                document.getElementById('levelVal').innerText = currentLevel;
+                loadLevel(11);
+            } else if (currentLevel === 11) {
+                // Defeating Ignis Prime unlocks Checkpoint 4 & moves to Level 12 Victory Vault!
+                unlockedCheckpoint = 12;
+                checkpointLevel = 12;
+                checkpointScore = score;
+                currentLevel = 12;
+                document.getElementById('levelVal').innerText = currentLevel;
+                loadLevel(12);
+                levelBanner = { text: 'IGNIS PRIME VANQUISHED! MOLTEN VAULT UNLOCKED', timer: 150 };
+            } else if (currentLevel < 12) {
+                currentLevel++;
+                document.getElementById('levelVal').innerText = currentLevel;
+                loadLevel(currentLevel);
+            } else {
+                gameState = 'VICTORY';
+                document.getElementById('msgTitle').innerText = 'ULTIMATE VICTORY!';
+                document.getElementById('msgTitle').className = 'text-xl sm:text-3xl text-yellow-400 mb-4';
+                document.getElementById('msgSub').innerText = `You Conquered All 12 Levels & Defeated Both Bosses! Final Score: ${score}`;
+
+                const retryBtn = document.getElementById('btnRetryCheckpoint');
+                const mainBtn = document.getElementById('btnRestartAll');
+                retryBtn.classList.add('hidden');
+                mainBtn.innerText = 'PLAY AGAIN';
+                document.getElementById('messageOverlay').classList.remove('hidden');
+            }
+        }
+
+        function updateHUD() {
+            document.getElementById('scoreVal').innerText = score;
+            document.getElementById('levelVal').innerText = currentLevel;
+            let fullHearts = Math.floor(playerHp / 2);
+            let halfHeart = (playerHp % 2 === 1);
+            let hearts = '';
+
+            for (let i = 0; i < fullHearts; i++) {
+                if (hasBlackHeartShield && i === fullHearts - 1 && !halfHeart) {
+                    hearts += '🖤';
+                } else {
+                    hearts += '❤️';
+                }
+            }
+            if (halfHeart) {
+                if (hasBlackHeartShield && fullHearts === 0) {
+                    hearts += '🖤';
+                } else {
+                    hearts += '💔';
+                }
+            }
+            if (hearts === '') hearts = '💀';
+            document.getElementById('livesContainer').innerText = hearts;
+        }
+
+        function update() {
+            if (gameState !== 'PLAYING') return;
+
+            if (invincibilityTimer > 0) invincibilityTimer--;
+            if (jumpBufferTimer > 0) {
+                jumpBufferTimer--;
+                executeBufferedJump();
+            }
+
+            // Smooth scale recovery for squash & stretch
+            playerScaleX += (1 - playerScaleX) * 0.15;
+            playerScaleY += (1 - playerScaleY) * 0.15;
+
+            updateFloatingTexts();
+
+            // Horizontal Controls
+            player.vx = 0;
+            if (keys['ArrowLeft'] || keys['KeyA']) {
+                player.vx = -player.speed;
+                player.facing = 'left';
+            }
+            if (keys['ArrowRight'] || keys['KeyD']) {
+                player.vx = player.speed;
+                player.facing = 'right';
+            }
+
+            player.x += player.vx;
+
+            // Horizontal platform collisions
+            platforms.forEach(plat => {
+                if (checkCollision(player, plat)) {
+                    if (player.vx > 0) player.x = plat.x - player.width;
+                    else if (player.vx < 0) player.x = plat.x + plat.width;
+                }
+            });
+
+            // Vertical Gravity
+            player.vy += player.gravity;
+            player.y += player.vy;
+
+            // Coyote Time Tracking
+            if (player.grounded) {
+                coyoteTimer = 6;
+            } else if (coyoteTimer > 0) {
+                coyoteTimer--;
+            }
+
+            player.grounded = false;
+
+            // Vertical platform collisions
+            platforms.forEach(plat => {
+                if (checkCollision(player, plat)) {
+                    if (player.vy > 0) { // Landing on top
+                        if (!player.grounded) {
+                            // Squash on impact
+                            playerScaleX = 1.2;
+                            playerScaleY = 0.8;
+                            spawnParticles(player.x + player.width / 2, plat.y, '#94a3b8', 4);
+                        }
+                        player.y = plat.y - player.height;
+                        player.vy = 0;
+                        player.grounded = true;
+                        player.hasDoubleJumped = false;
+                    } else if (player.vy < 0) { // Hitting underside
+                        player.y = plat.y + plat.height;
+                        player.vy = 0;
+                    }
+                }
+            });
+
+            // LAVA HAZARD & FLUID MECHANICS
+            let playerInLava = false;
+            lavas.forEach(lava => {
+                let actualLavaY = (currentLevel === 11 && ignisBoss && ignisBoss.surging) ? lavaSurgeY : lava.y;
+                let actualLavaH = (currentLevel === 11 && ignisBoss && ignisBoss.surging) ? (500 - lavaSurgeY) : lava.height;
+
+                if (checkCollision(player, { x: lava.x, y: actualLavaY, width: lava.width, height: actualLavaH })) {
+                    playerInLava = true;
+                }
+            });
+
+            playerInLavaState = playerInLava;
+
+            if (playerInLava) {
+                // Liquid drag & buoyancy in molten lava
+                player.vy = Math.min(player.vy, 2.2);
+                player.vx *= 0.88;
+
+                lavaTimeFrames++;
+
+                // Deal half-heart damage (1 HP) immediately on touch or every 40 frames (~0.66s) while inside
+                if (lavaTimeFrames === 1 || (lavaTimeFrames > 40 && (lavaTimeFrames - 1) % 40 === 0)) {
+                    let tookDmg = takeDamage(1);
+                    if (tookDmg) {
+                        // Upward thermal bounce recoil so player isn't trapped or dragged into pitfall!
+                        player.vy = -8.5;
+                        player.grounded = false;
+                        spawnParticles(player.x + player.width / 2, player.y + player.height, '#ff4500', 16);
+                        spawnParticles(player.x + player.width / 2, player.y + player.height, '#facc15', 12);
+                    }
+                }
+
+                // Sizzle steam and ember particles
+                if (Math.random() < 0.5) {
+                    spawnParticles(player.x + player.width / 2, player.y + player.height, Math.random() < 0.5 ? '#f97316' : '#ef4444', 3);
+                }
+            } else {
+                lavaTimeFrames = 0;
+            }
+
+            // Update Patrolling Enemies
+            enemies.forEach(enemy => {
+                if (enemy.type === 'flying') {
+                    // Vertical flying patrol
+                    enemy.y += enemy.speed * enemy.direction;
+                    if (enemy.y <= enemy.startY) {
+                        enemy.y = enemy.startY;
+                        enemy.direction = 1;
+                    } else if (enemy.y >= enemy.endY) {
+                        enemy.y = enemy.endY;
+                        enemy.direction = -1;
+                    }
+                    enemy.wingAnim = (enemy.wingAnim || 0) + 0.2;
+                } else {
+                    // Horizontal ground patrol
+                    enemy.x += enemy.speed * enemy.direction;
+                    if (enemy.x <= enemy.startX) {
+                        enemy.x = enemy.startX;
+                        enemy.direction = 1;
+                    } else if (enemy.x >= enemy.endX) {
+                        enemy.x = enemy.endX;
+                        enemy.direction = -1;
+                    }
+                }
+
+                // Check collision with player
+                if (checkCollision(player, enemy)) {
+                    loseLife();
+                }
+            });
+
+            // Coin Collection
+            coins.forEach(coin => {
+                if (!coin.collected && checkCollision(player, { x: coin.x - 10, y: coin.y - 10, width: 20, height: 20 })) {
+                    coin.collected = true;
+                    score += 100;
+                    updateHUD();
+                    spawnFloatingText(coin.x, coin.y - 10, '+100', '#facc15');
+                    spawnParticles(coin.x, coin.y, '#facc15', 10);
+                }
+            });
+
+            // Player arena boundary check for Boss levels
+            if (currentLevel === 5 || currentLevel === 11) {
+                if (player.x < 0) player.x = 0;
+                if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+            }
+
+            // LEVEL 5 OMEGA SENTINEL BOSS LOGIC
+            if (currentLevel === 5 && boss) {
+                boss.angle += 0.025;
+                boss.x = 400 + Math.sin(boss.angle) * 220;
+                boss.y = 110 + Math.cos(boss.angle * 2) * 35;
+
+                if (boss.hitFlashTimer > 0) boss.hitFlashTimer--;
+
+                boss.attackTimer++;
+                if (boss.attackTimer >= 120 && telegraphedAttacks.length < 2) {
+                    boss.attackTimer = 0;
+                    let attackTypes = ['aimed', 'spread', 'rain', 'cross'];
+                    let chosenType = attackTypes[Math.floor(Math.random() * attackTypes.length)];
+                    let newAttack = { type: chosenType, timer: 85, maxTimer: 85, paths: [] };
+
+                    if (chosenType === 'aimed') {
+                        let dx = (player.x + player.width / 2) - boss.x;
+                        let dy = (player.y + player.height / 2) - boss.y;
+                        let dist = Math.hypot(dx, dy) || 1;
+                        let spd = 9.8;
+                        newAttack.paths.push({ startX: boss.x, startY: boss.y, endX: boss.x + (dx / dist) * 900, endY: boss.y + (dy / dist) * 900, vx: (dx / dist) * spd, vy: (dy / dist) * spd, radius: 8, color: '#ef4444' });
+                    } else if (chosenType === 'spread') {
+                        let baseAng = Math.atan2((player.y + 18) - boss.y, (player.x + 13) - boss.x);
+                        let spd = 9.2;
+                        for (let offset of [-0.35, 0, 0.35]) {
+                            let ang = baseAng + offset;
+                            newAttack.paths.push({ startX: boss.x, startY: boss.y, endX: boss.x + Math.cos(ang) * 900, endY: boss.y + Math.sin(ang) * 900, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, radius: 7, color: '#f97316' });
+                        }
+                    } else if (chosenType === 'rain') {
+                        for (let i = 0; i < 3; i++) {
+                            let rx = 120 + Math.random() * 560;
+                            newAttack.paths.push({ startX: rx, startY: 0, endX: rx, endY: 500, vx: (Math.random() - 0.5) * 1, vy: 10.5, radius: 8, color: '#eab308' });
+                        }
+                    } else if (chosenType === 'cross') {
+                        let sweepY = Math.min(380, Math.max(160, player.y + 10));
+                        let fromLeft = Math.random() < 0.5;
+                        newAttack.paths.push({ startX: fromLeft ? -20 : 820, startY: sweepY, endX: fromLeft ? 820 : -20, endY: sweepY, vx: fromLeft ? 12.0 : -12.0, vy: 0, radius: 9, color: '#06b6d4' });
+                    }
+                    telegraphedAttacks.push(newAttack);
+                }
+
+                for (let i = telegraphedAttacks.length - 1; i >= 0; i--) {
+                    let atk = telegraphedAttacks[i];
+                    atk.timer--;
+                    if (atk.timer <= 0) {
+                        atk.paths.forEach(p => {
+                            bossProjectiles.push({ x: p.startX, y: p.startY, vx: p.vx, vy: p.vy, radius: p.radius, color: p.color });
+                            spawnParticles(p.startX, p.startY, p.color, 6);
+                        });
+                        telegraphedAttacks.splice(i, 1);
+                    }
+                }
+
+                for (let i = bossProjectiles.length - 1; i >= 0; i--) {
+                    let p = bossProjectiles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+
+                    if (checkCollision(player, { x: p.x - p.radius, y: p.y - p.radius, width: p.radius * 2, height: p.radius * 2 })) {
+                        spawnParticles(p.x, p.y, '#ef4444', 12);
+                        bossProjectiles.splice(i, 1);
+                        loseLife();
+                        continue;
+                    }
+                    if (p.x < -30 || p.x > 830 || p.y < -30 || p.y > 530) bossProjectiles.splice(i, 1);
+                }
+
+                if (!bossItem) {
+                    bossItemSpawnTimer--;
+                    if (bossItemSpawnTimer <= 0) {
+                        let spawnPlats = [1, 2, 3, 4];
+                        let targetPlat = platforms[spawnPlats[Math.floor(Math.random() * spawnPlats.length)]];
+                        bossItem = { x: targetPlat.x + targetPlat.width / 2 - 12, y: targetPlat.y - 36, width: 24, height: 24, floatAnim: 0 };
+                        spawnParticles(bossItem.x + 12, bossItem.y + 12, '#facc15', 10);
+                    }
+                } else {
+                    bossItem.floatAnim += 0.08;
+                    if (checkCollision(player, bossItem)) {
+                        spawnParticles(bossItem.x + 12, bossItem.y + 12, '#facc15', 15);
+                        spawnParticles(bossItem.x + 12, bossItem.y + 12, '#38bdf8', 15);
+                        playerMissiles.push({ x: player.x + player.width / 2, y: player.y, speed: 9.5 });
+                        bossItem = null;
+                        bossItemSpawnTimer = 110;
+                    }
+                }
+
+                for (let i = playerMissiles.length - 1; i >= 0; i--) {
+                    let m = playerMissiles[i];
+                    let dx = boss.x - m.x;
+                    let dy = boss.y - m.y;
+                    let dist = Math.hypot(dx, dy);
+
+                    if (dist < 18) {
+                        boss.hp--;
+                        boss.hitFlashTimer = 14;
+                        score += 500;
+                        updateHUD();
+                        spawnParticles(boss.x, boss.y, '#38bdf8', 20);
+                        spawnParticles(boss.x, boss.y, '#facc15', 20);
+                        playerMissiles.splice(i, 1);
+
+                        if (boss.hp <= 0) {
+                            spawnParticles(boss.x, boss.y, '#ef4444', 35);
+                            spawnParticles(boss.x, boss.y, '#a855f7', 35);
+                            spawnParticles(boss.x, boss.y, '#38bdf8', 35);
+                            score += 2500;
+                            updateHUD();
+                            nextLevel();
+                        }
+                    } else {
+                        m.x += (dx / dist) * m.speed;
+                        m.y += (dy / dist) * m.speed;
+                    }
+                }
+            }
+
+            // LEVEL 11 IGNIS PRIME BOSS LOGIC (Fiery Lava Titan!)
+            if (currentLevel === 11 && ignisBoss) {
+                ignisBoss.angle += 0.03;
+                ignisBoss.x = 400 + Math.sin(ignisBoss.angle) * 200;
+                ignisBoss.y = 110 + Math.sin(ignisBoss.angle * 2) * 25;
+
+                if (ignisBoss.hitFlashTimer > 0) ignisBoss.hitFlashTimer--;
+
+                // Periodic Lava Floor Surge Mechanic
+                ignisBoss.surgeTimer++;
+                if (ignisBoss.surgeTimer > 320) {
+                    ignisBoss.surging = true;
+                    lavaSurgeY = 440 - Math.sin((ignisBoss.surgeTimer - 320) / 40) * 80;
+                    if (ignisBoss.surgeTimer > 460) {
+                        ignisBoss.surging = false;
+                        ignisBoss.surgeTimer = 0;
+                        lavaSurgeY = 440;
+                    }
+                }
+
+                // Attack Patterns: Telegraphed Flame Pillars & Magma Fireballs
+                ignisBoss.attackTimer++;
+                if (ignisBoss.attackTimer >= 105 && telegraphedAttacks.length < 2) {
+                    ignisBoss.attackTimer = 0;
+                    let atkType = Math.random() < 0.5 ? 'flame_pillar' : 'magma_salvo';
+
+                    if (atkType === 'flame_pillar') {
+                        let targetX = player.x + player.width / 2;
+                        telegraphedAttacks.push({
+                            type: 'flame_pillar',
+                            timer: 70,
+                            maxTimer: 70,
+                            x: targetX,
+                            width: 44
+                        });
+                    } else {
+                        let baseAng = Math.atan2((player.y + 18) - ignisBoss.y, (player.x + 13) - ignisBoss.x);
+                        let spd = 9.5;
+                        let newAtk = { type: 'magma_salvo', timer: 65, maxTimer: 65, paths: [] };
+                        for (let offset of [-0.3, 0, 0.3]) {
+                            let ang = baseAng + offset;
+                            newAtk.paths.push({
+                                startX: ignisBoss.x, startY: ignisBoss.y,
+                                endX: ignisBoss.x + Math.cos(ang) * 900, endY: ignisBoss.y + Math.sin(ang) * 900,
+                                vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+                                radius: 8, color: '#f97316'
+                            });
+                        }
+                        telegraphedAttacks.push(newAtk);
+                    }
+                }
+
+                // Process Ignis Telegraphed Attacks
+                for (let i = telegraphedAttacks.length - 1; i >= 0; i--) {
+                    let atk = telegraphedAttacks[i];
+                    atk.timer--;
+                    if (atk.timer <= 0) {
+                        if (atk.type === 'flame_pillar') {
+                            flamePillars.push({ x: atk.x - atk.width / 2, y: 0, width: atk.width, height: 500, timer: 40 });
+                            spawnParticles(atk.x, 440, '#f97316', 20);
+                        } else if (atk.paths) {
+                            atk.paths.forEach(p => {
+                                bossProjectiles.push({ x: p.startX, y: p.startY, vx: p.vx, vy: p.vy, radius: p.radius, color: p.color });
+                            });
+                        }
+                        telegraphedAttacks.splice(i, 1);
+                    }
+                }
+
+                // Update Active Flame Pillars
+                for (let i = flamePillars.length - 1; i >= 0; i--) {
+                    let fp = flamePillars[i];
+                    fp.timer--;
+                    if (checkCollision(player, fp)) {
+                        takeDamage(1); // Flame pillar half-heart hit
+                    }
+                    if (fp.timer <= 0) flamePillars.splice(i, 1);
+                }
+
+                // Update Ignis Boss Projectiles
+                for (let i = bossProjectiles.length - 1; i >= 0; i--) {
+                    let p = bossProjectiles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+
+                    if (checkCollision(player, { x: p.x - p.radius, y: p.y - p.radius, width: p.radius * 2, height: p.radius * 2 })) {
+                        spawnParticles(p.x, p.y, '#f97316', 15);
+                        bossProjectiles.splice(i, 1);
+                        takeDamage(1);
+                        continue;
+                    }
+                    if (p.x < -30 || p.x > 830 || p.y < -30 || p.y > 530) bossProjectiles.splice(i, 1);
+                }
+
+                // Frost Crystal Cores (Damage Item for Ignis Prime)
+                if (!bossItem) {
+                    bossItemSpawnTimer--;
+                    if (bossItemSpawnTimer <= 0) {
+                        let spawnPlats = [1, 2, 3, 4];
+                        let targetPlat = platforms[spawnPlats[Math.floor(Math.random() * spawnPlats.length)]];
+                        bossItem = { x: targetPlat.x + targetPlat.width / 2 - 12, y: targetPlat.y - 36, width: 24, height: 24, floatAnim: 0, isIce: true };
+                        spawnParticles(bossItem.x + 12, bossItem.y + 12, '#38bdf8', 12);
+                    }
+                } else {
+                    bossItem.floatAnim += 0.08;
+                    if (checkCollision(player, bossItem)) {
+                        spawnParticles(bossItem.x + 12, bossItem.y + 12, '#38bdf8', 25);
+                        playerMissiles.push({ x: player.x + player.width / 2, y: player.y, speed: 10.5, isIce: true });
+                        bossItem = null;
+                        bossItemSpawnTimer = 100;
+                    }
+                }
+
+                // Update Player Cryo Missiles hitting Ignis Prime
+                for (let i = playerMissiles.length - 1; i >= 0; i--) {
+                    let m = playerMissiles[i];
+                    let dx = ignisBoss.x - m.x;
+                    let dy = ignisBoss.y - m.y;
+                    let dist = Math.hypot(dx, dy);
+
+                    if (dist < 22) {
+                        ignisBoss.hp--;
+                        ignisBoss.hitFlashTimer = 14;
+                        score += 500;
+                        updateHUD();
+                        spawnParticles(ignisBoss.x, ignisBoss.y, '#38bdf8', 25);
+                        spawnParticles(ignisBoss.x, ignisBoss.y, '#93c5fd', 25);
+                        playerMissiles.splice(i, 1);
+
+                        if (ignisBoss.hp <= 0) {
+                            spawnParticles(ignisBoss.x, ignisBoss.y, '#ef4444', 40);
+                            spawnParticles(ignisBoss.x, ignisBoss.y, '#38bdf8', 40);
+                            score += 3000;
+                            updateHUD();
+                            nextLevel();
+                        }
+                    } else {
+                        m.x += (dx / dist) * m.speed;
+                        m.y += (dy / dist) * m.speed;
+                        particles.push({ x: m.x, y: m.y, vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, radius: 2.5, color: '#38bdf8', alpha: 0.8 });
+                    }
+                }
+            }
+
+            // Hazard Collisions (Spikes)
+            hazards.forEach(hz => {
+                if (checkCollision(player, hz)) {
+                    loseLife();
+                }
+            });
+
+            // Pitfall check
+            if (player.y > canvas.height + 50) {
+                loseLife();
+            }
+
+            // Goal Collision
+            if (goal.x !== undefined && checkCollision(player, goal)) {
+                nextLevel();
+            }
+
+            // Camera follow smoothing
+            if (currentLevel === 5 || currentLevel === 11) {
+                cameraX = 0;
+            } else {
+                let targetCameraX = player.x - canvas.width / 3;
+                if (targetCameraX < 0) targetCameraX = 0;
+                cameraX += (targetCameraX - cameraX) * 0.1;
+            }
+
+            updateParticles();
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            let shakeX = 0;
+            let shakeY = 0;
+            if (screenShakeTimer > 0) {
+                screenShakeTimer--;
+                shakeX = (Math.random() - 0.5) * screenShakeIntensity;
+                shakeY = (Math.random() - 0.5) * screenShakeIntensity;
+            }
+
+            ctx.save();
+            ctx.translate(-cameraX + shakeX, shakeY);
+
+            // Background Atmosphere with Parallax & Theme Details
+            ctx.fillStyle = (currentLevel >= 7 && currentLevel <= 11) ? '#140505' : '#060913';
+            ctx.fillRect(cameraX - 40, 0, canvas.width + 80, canvas.height);
+
+            // Parallax Ambient Grid Lines
+            ctx.save();
+            ctx.globalAlpha = 0.12;
+            let gridOffset = (cameraX * 0.3) % 40;
+            ctx.strokeStyle = (currentLevel >= 7 && currentLevel <= 11) ? '#f97316' : '#38bdf8';
+            ctx.lineWidth = 1;
+            for (let x = cameraX - gridOffset - 40; x < cameraX + canvas.width + 40; x += 40) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // Draw Platforms
+            platforms.forEach(plat => {
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+                ctx.strokeStyle = (currentLevel >= 7 && currentLevel <= 11) ? '#f97316' : '#3b82f6';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(plat.x, plat.y, plat.width, plat.height);
+
+                ctx.fillStyle = (currentLevel >= 7 && currentLevel <= 11) ? '#f9731644' : '#3b82f644';
+                ctx.fillRect(plat.x + 12, plat.y + 6, 16, 4);
+                ctx.fillRect(plat.x + 40, plat.y + 6, 16, 4);
+            });
+
+            // Draw LAVA Pools (Volcanic hazard with bubbling animated surface)
+            lavas.forEach(lava => {
+                let lavaY = (currentLevel === 11 && ignisBoss && ignisBoss.surging) ? lavaSurgeY : lava.y;
+                let lavaH = (currentLevel === 11 && ignisBoss && ignisBoss.surging) ? (500 - lavaSurgeY) : lava.height;
+
+                // Glowing Lava gradient fill
+                let lavaGrad = ctx.createLinearGradient(0, lavaY, 0, lavaY + lavaH);
+                lavaGrad.addColorStop(0, '#ff4500');
+                lavaGrad.addColorStop(0.4, '#dc2626');
+                lavaGrad.addColorStop(1, '#7f1d1d');
+                ctx.fillStyle = lavaGrad;
+                ctx.fillRect(lava.x, lavaY, lava.width, lavaH);
+
+                // Lava Top Surface Bubbling Wave
+                ctx.fillStyle = '#facc15';
+                ctx.beginPath();
+                ctx.moveTo(lava.x, lavaY);
+                for (let x = lava.x; x <= lava.x + lava.width; x += 15) {
+                    let waveY = lavaY + Math.sin((Date.now() / 150) + (x * 0.05)) * 4;
+                    ctx.lineTo(x, waveY);
+                }
+                ctx.lineTo(lava.x + lava.width, lavaY + 6);
+                ctx.lineTo(lava.x, lavaY + 6);
+                ctx.closePath();
+                ctx.fill();
+            });
+
+            // Draw Hazards (Spikes)
+            hazards.forEach(hz => {
+                ctx.fillStyle = '#ef4444';
+                let spikeW = 15;
+                let count = Math.ceil(hz.width / spikeW);
+                for (let i = 0; i < count; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(hz.x + (i * spikeW), hz.y + hz.height);
+                    ctx.lineTo(hz.x + (i * spikeW) + spikeW / 2, hz.y);
+                    ctx.lineTo(hz.x + ((i + 1) * spikeW), hz.y + hz.height);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            });
+
+            // Draw Patrolling Enemies
+            enemies.forEach(enemy => {
+                if (enemy.type === 'flying') {
+                    ctx.save();
+                    ctx.translate(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
+
+                    let wingSpread = Math.sin(enemy.wingAnim || 0) * 4;
+
+                    ctx.fillStyle = '#a855f7';
+                    ctx.strokeStyle = '#c084fc';
+                    ctx.lineWidth = 1.5;
+
+                    ctx.beginPath();
+                    ctx.moveTo(-enemy.width / 2, -2);
+                    ctx.lineTo(-enemy.width / 2 - 8, -6 + wingSpread);
+                    ctx.lineTo(-enemy.width / 2 - 4, 5 - wingSpread);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(enemy.width / 2, -2);
+                    ctx.lineTo(enemy.width / 2 + 8, -6 - wingSpread);
+                    ctx.lineTo(enemy.width / 2 + 4, 5 + wingSpread);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#6b21a8';
+                    ctx.strokeStyle = '#f472b6';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -enemy.height / 2);
+                    ctx.lineTo(enemy.width / 2, 0);
+                    ctx.lineTo(0, enemy.height / 2);
+                    ctx.lineTo(-enemy.width / 2, 0);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#ef4444';
+                    ctx.shadowColor = '#ef4444';
+                    ctx.shadowBlur = 8;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    let thrusterH = 5 + Math.random() * 5;
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.beginPath();
+                    ctx.moveTo(-3, enemy.height / 2);
+                    ctx.lineTo(3, enemy.height / 2);
+                    ctx.lineTo(0, enemy.height / 2 + thrusterH);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    ctx.restore();
+                } else {
+                    ctx.fillStyle = '#f97316';
+                    ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+                    ctx.strokeStyle = '#fed7aa';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(enemy.x, enemy.y, enemy.width, enemy.height);
+
+                    ctx.fillStyle = '#ef4444';
+                    let eyeOffset = enemy.direction === 1 ? enemy.x + 18 : enemy.x + 4;
+                    ctx.fillRect(eyeOffset, enemy.y + 8, 8, 6);
+                }
+            });
+
+            // Draw Coins
+            coins.forEach(coin => {
+                if (!coin.collected) {
+                    ctx.fillStyle = '#facc15';
+                    ctx.beginPath();
+                    ctx.arc(coin.x, coin.y, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#ca8a04';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#fef08a';
+                    ctx.fillRect(coin.x - 2, coin.y - 4, 4, 8);
+                }
+            });
+
+            // Render Level 5 Omega Sentinel Boss Entity & Arena Elements
+            if (currentLevel === 5 && boss) {
+                telegraphedAttacks.forEach(atk => {
+                    let progress = 1 - (atk.timer / atk.maxTimer);
+                    let pulse = Math.sin(Date.now() / 60) * 0.15 + 0.35;
+                    ctx.save();
+                    ctx.setLineDash([8, 6]);
+
+                    atk.paths.forEach(p => {
+                        ctx.strokeStyle = p.color;
+                        ctx.globalAlpha = pulse;
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(p.startX, p.startY);
+                        ctx.lineTo(p.endX, p.endY);
+                        ctx.stroke();
+
+                        ctx.fillStyle = p.color;
+                        ctx.globalAlpha = Math.min(1, progress * 1.3);
+                        ctx.beginPath();
+                        ctx.arc(p.startX, p.startY, 5 + Math.sin(Date.now() / 40) * 2, 0, Math.PI * 2);
+                        ctx.fill();
+                    });
+                    ctx.restore();
+                });
+                ctx.save();
+                ctx.translate(boss.x, boss.y);
+
+                let isHit = boss.hitFlashTimer > 0;
+
+                ctx.strokeStyle = isHit ? '#ffffff' : '#a855f7';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(0, 0, 48 + Math.sin(boss.angle * 3) * 4, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.fillStyle = isHit ? '#fef08a' : '#4c1d95';
+                ctx.strokeStyle = isHit ? '#ffffff' : '#e879f9';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(0, -38);
+                ctx.lineTo(38, 0);
+                ctx.lineTo(0, 38);
+                ctx.lineTo(-38, 0);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = isHit ? '#ffffff' : '#ef4444';
+                ctx.shadowColor = '#ef4444';
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.arc(0, 0, 12, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                ctx.restore();
+
+                bossProjectiles.forEach(p => {
+                    ctx.fillStyle = p.color;
+                    ctx.shadowColor = p.color;
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                });
+
+                playerMissiles.forEach(m => {
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.shadowColor = '#38bdf8';
+                    ctx.shadowBlur = 12;
+                    ctx.beginPath();
+                    ctx.arc(m.x, m.y, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                });
+
+                if (bossItem) {
+                    let floatOffset = Math.sin(bossItem.floatAnim) * 5;
+                    let itemX = bossItem.x;
+                    let itemY = bossItem.y + floatOffset;
+
+                    ctx.fillStyle = '#facc15';
+                    ctx.shadowColor = '#facc15';
+                    ctx.shadowBlur = 12;
+                    ctx.fillRect(itemX, itemY, bossItem.width, bossItem.height);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(itemX, itemY, bossItem.width, bossItem.height);
+                    ctx.shadowBlur = 0;
+
+                    ctx.fillStyle = '#0284c7';
+                    ctx.fillRect(itemX + 6, itemY + 6, 12, 12);
+                }
+            }
+
+            // Render Level 11 Ignis Prime Boss Entity & Arena Elements
+            if (currentLevel === 11 && ignisBoss) {
+                // Telegraphed Attack Warnings
+                telegraphedAttacks.forEach(atk => {
+                    let pulse = Math.sin(Date.now() / 50) * 0.2 + 0.5;
+                    ctx.save();
+                    ctx.globalAlpha = pulse;
+
+                    if (atk.type === 'flame_pillar') {
+                        // Vertical flame warning pillar line
+                        ctx.strokeStyle = '#ef4444';
+                        ctx.lineWidth = 3;
+                        ctx.setLineDash([10, 6]);
+                        ctx.beginPath();
+                        ctx.moveTo(atk.x, 0);
+                        ctx.lineTo(atk.x, 500);
+                        ctx.stroke();
+
+                        ctx.fillStyle = '#f97316';
+                        ctx.fillRect(atk.x - atk.width / 2, 420, atk.width, 20);
+                    } else if (atk.paths) {
+                        ctx.setLineDash([8, 6]);
+                        atk.paths.forEach(p => {
+                            ctx.strokeStyle = p.color;
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.moveTo(p.startX, p.startY);
+                            ctx.lineTo(p.endX, p.endY);
+                            ctx.stroke();
+                        });
+                    }
+                    ctx.restore();
+                });
+
+                // Active Flame Pillars
+                flamePillars.forEach(fp => {
+                    let fpGrad = ctx.createLinearGradient(fp.x, 0, fp.x + fp.width, 0);
+                    fpGrad.addColorStop(0, '#ff4500');
+                    fpGrad.addColorStop(0.5, '#facc15');
+                    fpGrad.addColorStop(1, '#ff4500');
+                    ctx.fillStyle = fpGrad;
+                    ctx.fillRect(fp.x, fp.y, fp.width, fp.height);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(fp.x + fp.width / 2 - 3, fp.y, 6, fp.height);
+                });
+
+                // Ignis Boss Visual Entity
+                ctx.save();
+                ctx.translate(ignisBoss.x, ignisBoss.y);
+
+                let isHit = ignisBoss.hitFlashTimer > 0;
+
+                // Pulsing Magma Aura
+                ctx.fillStyle = isHit ? '#ffffff' : '#f9731633';
+                ctx.beginPath();
+                ctx.arc(0, 0, 65 + Math.sin(ignisBoss.angle * 4) * 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Fiery Horned Crown Hull
+                ctx.fillStyle = isHit ? '#fef08a' : '#991b1b';
+                ctx.strokeStyle = isHit ? '#ffffff' : '#f97316';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(0, -45);
+                ctx.lineTo(25, -20);
+                ctx.lineTo(45, 10);
+                ctx.lineTo(20, 45);
+                ctx.lineTo(-20, 45);
+                ctx.lineTo(-45, 10);
+                ctx.lineTo(-25, -20);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Glowing Lava Core Eye
+                ctx.fillStyle = isHit ? '#ffffff' : '#facc15';
+                ctx.shadowColor = '#facc15';
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.arc(0, 0, 15, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                ctx.restore();
+
+                // Ignis Boss Projectiles
+                bossProjectiles.forEach(p => {
+                    ctx.fillStyle = p.color;
+                    ctx.shadowColor = p.color;
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                });
+
+                // Player Cryo Missiles
+                playerMissiles.forEach(m => {
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.shadowColor = '#38bdf8';
+                    ctx.shadowBlur = 14;
+                    ctx.beginPath();
+                    ctx.arc(m.x, m.y, 7, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                });
+
+                // Floating Frost Crystal Core Item
+                if (bossItem) {
+                    let floatOffset = Math.sin(bossItem.floatAnim) * 5;
+                    let itemX = bossItem.x;
+                    let itemY = bossItem.y + floatOffset;
+
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.shadowColor = '#38bdf8';
+                    ctx.shadowBlur = 14;
+                    ctx.fillRect(itemX, itemY, bossItem.width, bossItem.height);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(itemX, itemY, bossItem.width, bossItem.height);
+                    ctx.shadowBlur = 0;
+
+                    ctx.fillStyle = '#bae6fd';
+                    ctx.fillRect(itemX + 6, itemY + 6, 12, 12);
+                }
+            }
+
+            // Draw Goal Portal
+            if (goal.x !== undefined) {
+                ctx.fillStyle = '#10b981';
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#10b981';
+                ctx.fillRect(goal.x, goal.y, goal.width, goal.height);
+                ctx.shadowBlur = 0;
+
+                ctx.fillStyle = '#6ee7b7';
+                ctx.fillRect(goal.x + 6, goal.y + 6, goal.width - 12, goal.height - 12);
+            }
+
+            // Draw Particles
+            particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.alpha;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            });
+
+            // Draw Floating Text
+            floatingTexts.forEach(ft => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, ft.alpha);
+                ctx.font = '10px "Press Start 2P", monospace';
+                ctx.fillStyle = ft.color;
+                ctx.textAlign = 'center';
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            });
+
+            // Draw Player (flashes when invincible)
+            if (invincibilityTimer % 4 < 2) {
+                if (hasBlackHeartShield) {
+                    ctx.save();
+                    ctx.strokeStyle = '#c084fc';
+                    ctx.lineWidth = 2.5;
+                    ctx.shadowColor = '#a855f7';
+                    ctx.shadowBlur = 12;
+                    ctx.beginPath();
+                    ctx.arc(player.x + player.width / 2, player.y + player.height / 2, 22 + Math.sin(Date.now() / 100) * 2, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                ctx.save();
+                ctx.translate(player.x + player.width / 2, player.y + player.height);
+                ctx.scale(playerScaleX, playerScaleY);
+
+                ctx.fillStyle = player.color;
+                ctx.fillRect(-player.width / 2, -player.height, player.width, player.height);
+                ctx.strokeStyle = '#bae6fd';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(-player.width / 2, -player.height, player.width, player.height);
+
+                ctx.fillStyle = '#0f172a';
+                let eyeX = player.facing === 'right' ? 3 : -9;
+                ctx.fillRect(eyeX, -player.height + 8, 6, 6);
+
+                ctx.restore();
+            }
+
+            ctx.restore();
+
+            // Draw Boss Health Bar Overlay in Level 5
+            if (currentLevel === 5 && boss) {
+                ctx.save();
+                let barW = 320;
+                let barH = 16;
+                let barX = (canvas.width - barW) / 2;
+                let barY = 16;
+
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+                ctx.fillRect(barX - 10, barY - 14, barW + 20, barH + 22);
+                ctx.strokeStyle = '#a855f7';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(barX - 10, barY - 14, barW + 20, barH + 22);
+
+                ctx.font = '9px "Press Start 2P", monospace';
+                ctx.fillStyle = '#e879f9';
+                ctx.textAlign = 'center';
+                ctx.fillText('OMEGA SENTINEL [BOSS]', canvas.width / 2, barY - 2);
+
+                let hpPct = Math.max(0, boss.hp / boss.maxHp);
+                ctx.fillStyle = hpPct > 0.4 ? '#ef4444' : '#dc2626';
+                ctx.fillRect(barX, barY + 2, barW * hpPct, barH - 4);
+                ctx.strokeStyle = '#fef08a';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(barX, barY + 2, barW, barH - 4);
+
+                ctx.restore();
+            }
+
+            // Draw Boss Health Bar Overlay in Level 11
+            if (currentLevel === 11 && ignisBoss) {
+                ctx.save();
+                let barW = 320;
+                let barH = 16;
+                let barX = (canvas.width - barW) / 2;
+                let barY = 16;
+
+                ctx.fillStyle = 'rgba(20, 5, 5, 0.9)';
+                ctx.fillRect(barX - 10, barY - 14, barW + 20, barH + 22);
+                ctx.strokeStyle = '#f97316';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(barX - 10, barY - 14, barW + 20, barH + 22);
+
+                ctx.font = '9px "Press Start 2P", monospace';
+                ctx.fillStyle = '#facc15';
+                ctx.textAlign = 'center';
+                ctx.fillText('IGNIS PRIME [LAVA TITAN]', canvas.width / 2, barY - 2);
+
+                let hpPct = Math.max(0, ignisBoss.hp / ignisBoss.maxHp);
+                ctx.fillStyle = hpPct > 0.4 ? '#f97316' : '#ef4444';
+                ctx.fillRect(barX, barY + 2, barW * hpPct, barH - 4);
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(barX, barY + 2, barW, barH - 4);
+
+                ctx.restore();
+            }
+
+            // Draw Level Announcement Banner
+            if (levelBanner.timer > 0) {
+                levelBanner.timer--;
+                let alpha = Math.min(1, levelBanner.timer / 25);
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.font = '11px "Press Start 2P", monospace';
+                ctx.textAlign = 'center';
+                let textW = ctx.measureText(levelBanner.text).width + 36;
+                let bannerH = 34;
+                let bannerX = (canvas.width - textW) / 2;
+                let bannerY = 18;
+
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+                ctx.fillRect(bannerX, bannerY, textW, bannerH);
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(bannerX, bannerY, textW, bannerH);
+
+                ctx.fillStyle = '#ec4899';
+                ctx.fillRect(bannerX - 2, bannerY - 2, 6, 6);
+                ctx.fillRect(bannerX + textW - 4, bannerY - 2, 6, 6);
+                ctx.fillRect(bannerX - 2, bannerY + bannerH - 4, 6, 6);
+                ctx.fillRect(bannerX + textW - 4, bannerY + bannerH - 4, 6, 6);
+
+                ctx.fillStyle = '#facc15';
+                ctx.fillText(levelBanner.text, canvas.width / 2, bannerY + 22);
+                ctx.restore();
+            }
+        }
+
+        // Main Loop
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start loop on load
+        window.onload = function () {
+            loadLevel(1);
+            gameLoop();
+        };
+    </script>
+</body>
+
+</html>
